@@ -24,7 +24,7 @@ class Virtualenv(environment.Environment):
     """
     Manage an environment using virtualenv.
     """
-    tool_name = "virtualenv"
+    tool_name = "virtualenv_install_sh"
 
     def __init__(self, conf, python, requirements):
         """
