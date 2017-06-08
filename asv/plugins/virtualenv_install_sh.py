@@ -9,6 +9,7 @@ import re
 import inspect
 import os
 import subprocess
+import os.path
 
 import six
 
@@ -190,9 +191,11 @@ class Virtualenv(environment.Environment):
 
     def uninstall(self, package):
         log.info("Uninstalling from {0}".format(self.name))
-        util.check_output(['bash'] + ['uninstall.sh', package],
-                          cwd=self._build_root,
-                          timeout=self._install_timeout)
+
+        if os.path.isdir(self._build_root):
+            util.check_output(['bash'] + ['uninstall.sh', package],
+                              cwd=self._build_root,
+                              timeout=self._install_timeout)
 
     def run(self, args, **kwargs):
         log.debug("Running '{0}' in {1}".format(' '.join(args), self.name))
