@@ -190,8 +190,9 @@ class Virtualenv(environment.Environment):
 
     def uninstall(self, package):
         log.info("Uninstalling from {0}".format(self.name))
-        self.run_executable('pip', ['uninstall', '-y', package],
-                            valid_return_codes=None)
+        util.check_output(['bash'] + ['uninstall.sh', package],
+                          cwd=self._build_root,
+                          timeout=self._install_timeout)
 
     def run(self, args, **kwargs):
         log.debug("Running '{0}' in {1}".format(' '.join(args), self.name))
