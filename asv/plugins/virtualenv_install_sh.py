@@ -184,9 +184,9 @@ class Virtualenv(environment.Environment):
 
     def install(self, package):
         log.info("Installing into {0}".format(self.name))
-        self.run_executable('bash', ['install.sh', package],
-                            cwd=self._build_root,
-                            timeout=self._install_timeout)
+        util.check_output(['bash'] + ['install.sh', package],
+                          cwd=self._build_root,
+                          timeout=self._install_timeout)
 
     def uninstall(self, package):
         log.info("Uninstalling from {0}".format(self.name))
