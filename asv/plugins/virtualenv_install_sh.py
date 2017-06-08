@@ -177,9 +177,15 @@ class Virtualenv(environment.Environment):
                     args.append(pkg)
             self.run_executable('pip', args, timeout=self._install_timeout)
 
+    def build_project(self, repo, commit_hash):
+        self.checkout_project(repo, commit_hash)
+        log.info("Building for {0}".format(self.name))
+        return self._build_root
+
     def install(self, package):
         log.info("Installing into {0}".format(self.name))
-        self.run_executable('pip', ['install', package],
+        self.run_executable('bash', ['install.sh', package],
+                            cwd=self._build_root,
                             timeout=self._install_timeout)
 
     def uninstall(self, package):
