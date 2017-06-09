@@ -185,7 +185,9 @@ class Virtualenv(environment.Environment):
 
     def install(self, package):
         log.info("Installing into {0}".format(self.name))
-        util.check_output(['bash'] + ['install.sh', package],
+
+        install_script = os.path.abspath(os.path.join(self._env_dir, 'install.sh'))
+        util.check_output(['bash'] + [install_script, package],
                           cwd=self._build_root,
                           timeout=self._install_timeout)
 
@@ -193,7 +195,8 @@ class Virtualenv(environment.Environment):
         log.info("Uninstalling from {0}".format(self.name))
 
         if os.path.isdir(self._build_root):
-            util.check_output(['bash'] + ['uninstall.sh', package],
+            uninstall_script = os.path.abspath(os.path.join(self._env_dir, 'uninstall.sh'))
+            util.check_output(['bash'] + [uninstall_script, package],
                               cwd=self._build_root,
                               timeout=self._install_timeout)
 

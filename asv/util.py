@@ -387,8 +387,8 @@ class ProcessError(subprocess.CalledProcessError):
             return "Command '{0}' timed out".format(
                 ' '.join(self.args))
         else:
-            return "Command '{0}' returned non-zero exit status {1}".format(
-                ' '.join(self.args), self.retcode)
+            return "Command '{0}' returned non-zero exit status {1}\n{2}\n{3}".format(
+                ' '.join(self.args), self.retcode, self.stdout, self.stderr)
 
 
 def check_call(args, valid_return_codes=(0,), timeout=600, dots=True,
