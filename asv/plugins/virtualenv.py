@@ -7,6 +7,8 @@ from distutils.version import LooseVersion
 import sys
 import re
 import os
+import os.path
+import subprocess
 
 import six
 
@@ -182,6 +184,23 @@ class Virtualenv(environment.Environment):
         # Run pip via python -m pip, so that it works on Windows when
         # upgrading pip itself, and avoids shebang length limit on Linux
         return self.run_executable('python', ['-mpip'] + list(args), **kwargs)
+
+    def install(self, package):
+        log.info("Installing into {0}".format(self.name))
+
+        if os.path.isdir(package):
+            self.run_executable('python', ['setup.py', 'install'],
+                                timeout=self._install_timeout,
+                                cwd=package)
+            return
+
+        self._run_pip(['install', package], timeout=self._install_timeout)
+
+    def uninstall(self, package):
+        log.info("Uninstalling from {0}".format(self.name))
+        self._run_pip(['uninstall', '-y', package],
+                      timeout=self._install_timeout,
+                      valid_return_codes=None)
 
     def run(self, args, **kwargs):
         log.debug("Running '{0}' in {1}".format(' '.join(args), self.name))
