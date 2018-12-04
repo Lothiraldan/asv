@@ -11,6 +11,7 @@ from ..benchmarks import Benchmarks
 from ..console import log
 from ..machine import Machine
 from ..repo import get_repo
+from ..results import Results
 from ..runner import run_benchmarks
 from .. import util
 
@@ -51,6 +52,10 @@ class Find(Command):
             "--invert", "-i", action="store_true",
             help="""Search for a decrease in the benchmark value,
             rather than an increase.""")
+        parser.add_argument(
+            "--save_results", action="store_true",
+            default=None,
+            help="""Save results on disk for all tested commits.""")
         common_args.add_parallel(parser)
         common_args.add_show_stderr(parser)
         common_args.add_machine(parser)
@@ -68,12 +73,14 @@ class Find(Command):
             invert=args.invert, show_stderr=args.show_stderr,
             parallel=args.parallel,
             machine=args.machine, env_spec=args.env_spec,
-            launch_method=args.launch_method, **kwargs
+            launch_method=args.launch_method,
+            save_results=args.save_results, **kwargs
         )
 
     @classmethod
     def run(cls, conf, range_spec, bench, invert=False, show_stderr=False, parallel=1,
-            machine=None, env_spec=None, _machine_file=None, launch_method=None):
+            machine=None, env_spec=None, _machine_file=None, launch_method=None,
+            save_results=False):
         params = {}
         machine_params = Machine.load(
             machine_name=machine,
@@ -136,9 +143,28 @@ class Find(Command):
 
             env.install_project(conf, repo, commit_hash)
 
+            params = dict(machine_params.__dict__)
+            params['python'] = env.python
+            params.update(env.requirements)
+
+            result = Results(
+                params,
+                env.requirements,
+                commit_hash,
+                repo.get_date(commit_hash),
+                env.python,
+                env.name)
+
+            if save_results:
+                result.load_data(conf.results_dir)
+
             res = run_benchmarks(benchmarks, env,
+                                 results=result,
                                  show_stderr=show_stderr,
                                  launch_method=launch_method)
+
+            if save_results:
+                result.save(conf.results_dir)
 
             result = res.get_result_value(benchmark_name,
                                           benchmarks[benchmark_name]['params'])
