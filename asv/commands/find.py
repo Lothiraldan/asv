@@ -143,6 +143,11 @@ class Find(Command):
 
             env.install_project(conf, repo, commit_hash)
 
+            # The results code have mostly been copy-pasted from the run
+            # command.
+
+            # Copy the machine params in order to store it in the results.
+            # Also add the Python version for the current environment
             params = dict(machine_params.__dict__)
             params['python'] = env.python
             params.update(env.requirements)
@@ -156,6 +161,8 @@ class Find(Command):
                 env.name)
 
             if save_results:
+                # Load the existing results so we avoid overwriting existing
+                # results for this commit
                 result.load_data(conf.results_dir)
 
             res = run_benchmarks(benchmarks, env,
