@@ -664,11 +664,14 @@ class TimeBenchmark(Benchmark):
         max_repeat = int(max_repeat)
         max_time = float(max_time)
 
-        samples, number = self.benchmark_timing(timer, min_repeat, max_repeat,
-                                                max_time=max_time,
-                                                warmup_time=warmup_time,
-                                                number=self.number,
-                                                min_run_count=self.min_run_count)
+        try:
+            samples, number = self.benchmark_timing(timer, min_repeat, max_repeat,
+                                                    max_time=max_time,
+                                                    warmup_time=warmup_time,
+                                                    number=self.number,
+                                                    min_run_count=self.min_run_count)
+        except NotImplementedError:
+            return float('nan')
 
         samples = [s/number for s in samples]
         return {'samples': samples, 'number': number}
@@ -854,7 +857,10 @@ class TrackBenchmark(Benchmark):
         self.unit = _get_first_attr(attr_sources, "unit", "unit")
 
     def run(self, *param):
-        return self.func(*param)
+        try:
+            return self.func(*param)
+        except NotImplementedError:
+            return float('nan')
 
 
 # TODO: Support the creation of custom benchmark types
