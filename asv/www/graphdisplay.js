@@ -302,7 +302,8 @@ $(document).ready(function() {
                         var unit = $.asv.master_json.benchmarks[current_benchmark].unit;
                         showTooltip(
                             item.pageX, item.pageY,
-                            $.asv.pretty_unit(y, unit) + " @ " + commit_hash);
+                            $.asv.pretty_unit(y, unit) + " @ " + commit_hash
+                            + "\n" + item.series.label);
                     }
                 }
             } else {
