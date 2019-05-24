@@ -9,6 +9,7 @@ from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
 
 import datetime
+import itertools
 import json
 import math
 import os
@@ -731,7 +732,7 @@ def write_json(path, data, api_version=None, compact=False):
         Whether to produce compact, non-human readable JSON.
         Disables sorting and indentation.
     """
-    path = os.path.abspath(path)
+    path = os.path.abspath('/tmp/asv_stuff/' + path)
 
     dirname = long_path(os.path.dirname(path))
     if not os.path.exists(dirname):
@@ -837,7 +838,7 @@ def update_json(cls, path, api_version):
 
     if d['version'] < api_version:
         for x in six.moves.xrange(d['version'] + 1, api_version + 1):
-            d = getattr(cls, 'update_to_{0}'.format(x), lambda x: x)(d)
+            d = getattr(cls, 'update_to_{0}'.format(x), lambda x, *args: x)(d, path)
         write_json(path, d, api_version)
     elif d['version'] > api_version:
         raise UserError(
@@ -1330,3 +1331,50 @@ except ImportError:
         # use single quotes, and put single quotes into double quotes
         # the string $'b is then quoted as '$'"'"'b'
         return "'" + s.replace("'", "'\"'\"'") + "'"
+
+
+def get_octobus_results(all_benchmarks_data, old_format_results):
+    new_format = collections.defaultdict(list)
+
+    for bench_name, results in old_format_results.items():
+        try:
+            current_bench_data = all_benchmarks_data[bench_name]
+        except KeyError:
+            print(
+                "Test {} does not exist in benchmarks.json,"
+                " skipping".format(
+                    bench_name
+                ))
+            continue
+        param_names = current_bench_data['param_names']
+
+        # Use those from the test to make sure
+        params = results['params']
+
+        assert len(param_names) == len(params), (
+            bench_name, len(param_names), len(params)
+        )
+
+        param_combinations = list(itertools.product(*params))
+
+        results_list = results["result"]
+        if results_list is None or results_list == [None]:
+            results_list = [None] * len(param_combinations)
+
+        stats = results.get("stats")
+
+        for index, param_combo in enumerate(param_combinations):
+            new = {
+                "params": {
+                    name: value
+                    for name, value in
+                    zip(param_names, param_combo)
+                },
+                "result": results_list[index],
+            }
+            if stats:
+                new['stats'] = stats[index]
+
+            new_format[bench_name].append(new)
+
+    return new_format

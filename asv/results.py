@@ -16,6 +16,7 @@ import datetime
 import six
 from six.moves import zip as izip
 
+from asv.util import get_octobus_results
 from . import environment
 from .console import log
 from .machine import Machine
@@ -190,7 +191,7 @@ class Results(object):
     Manage a set of benchmark results for a single machine and commit
     hash.
     """
-    api_version = 1
+    api_version = 2
 
     def __init__(self, params, requirements, commit_hash, date, python, env_name):
         """
@@ -552,7 +553,7 @@ class Results(object):
         """
         return benchmark_name in self._profiles
 
-    def save(self, result_dir):
+    def save(self, result_dir, benchmarks_data):
         """
         Save the results to disk, replacing existing results.
 
@@ -584,6 +585,10 @@ class Results(object):
 
         data = {
             'results': results,
+            'octobus_results': get_octobus_results(
+                all_benchmarks_data=benchmarks_data,
+                old_format_results=results
+            ),
             'params': self._params,
             'requirements': self._requirements,
             'commit_hash': self._commit_hash,
@@ -694,6 +699,24 @@ class Results(object):
         os.remove(path)
 
     @classmethod
+    def update_to_2(cls, data, path):
+        global benchmarks_json_data
+        dirname = os.path.dirname(path)
+        if benchmarks_json_data.get(dirname) is None:
+            benchmarks_json_path = os.path.join(
+                os.path.dirname(dirname),
+                'benchmarks.json'
+            )
+            benchmarks_json_data[dirname] = util.load_json(benchmarks_json_path)
+
+        old_format = data['results']
+        bench_data = benchmarks_json_data[dirname]
+        new_format = util.get_octobus_results(bench_data, old_format)
+
+        data['octobus_results'] = new_format
+        return data
+
+    @classmethod
     def update(cls, path):
         util.update_json(cls, path, cls.api_version)
 
@@ -701,6 +724,7 @@ class Results(object):
     def env_name(self):
         return self._env_name
 
+benchmarks_json_data = {}
 
 def format_benchmark_result(results, benchmark):
     """
