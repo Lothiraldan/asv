@@ -183,6 +183,15 @@ class Benchmarks(dict):
         with log.indent():
             last_err = None
             for env, commit_hash in itertools.product(environments, try_hashes):
+                # Building with Rust before `rust_module_policy` would
+                # run Rust code even in the `pure` or `c` policies.
+                rust_module_policy = '94167e701e125dce1788e19b1e1489958235e40c'
+                if repo.get_hashes_from_range(repo.get_range_spec(
+                        commit_hash,
+                        rust_module_policy
+                )):
+                    env._tagged_env_vars.pop(('build', 'HGWITHRUSTEXT'), None)
+
                 env.create()
 
                 if last_err is not None:
