@@ -70,8 +70,9 @@ def test_dev(capsys, basic_conf):
     tmpdir, local, conf = basic_conf
 
     # Test Dev runs (with full benchmark suite)
-    tools.run_asv_with_conf(conf, 'dev',
-                            _machine_file=join(tmpdir, 'asv-machine.json'))
+    ret = tools.run_asv_with_conf(conf, 'dev', '--quick', '-e',
+                                  _machine_file=join(tmpdir, 'asv-machine.json'))
+    assert ret is None
     text, err = capsys.readouterr()
 
     # time_with_warnings failure case
@@ -90,7 +91,7 @@ def test_dev_with_repo_subdir(capsys, basic_conf_with_subdir):
     tmpdir, local, conf = basic_conf_with_subdir
 
     # Test Dev runs
-    tools.run_asv_with_conf(conf, 'dev',
+    tools.run_asv_with_conf(conf, 'dev', '--quick',
                             '--bench=time_secondary.track_value',
                             _machine_file=join(tmpdir, 'asv-machine.json'))
     text, err = capsys.readouterr()
@@ -101,6 +102,14 @@ def test_dev_with_repo_subdir(capsys, basic_conf_with_subdir):
     # Check that it did not clone or install
     assert "Cloning" not in text
     assert "Installing" not in text
+
+
+def test_dev_strict(basic_conf):
+    tmpdir, local, conf = basic_conf
+    ret = tools.run_asv_with_conf(conf, 'dev', '--strict', '--quick',
+                                  '--bench=TimeSecondary',
+                                  _machine_file=join(tmpdir, 'asv-machine.json'))
+    assert ret == 2
 
 
 def test_run_python_same(capsys, basic_conf):

@@ -549,8 +549,9 @@ class Benchmark(object):
         try:
             for setup in self._setups:
                 setup(*self._current_params)
-        except NotImplementedError:
+        except NotImplementedError as e:
             # allow skipping test
+            print("asv: skipped: {!r} ".format(e))
             return True
         return False
 
@@ -965,6 +966,11 @@ def disc_modules(module_name, ignore_import_errors=False):
         except BaseException:
             traceback.print_exc()
             return
+
+    # Exclude sourceless .pyc/.pyo left around (py3 __pycache__
+    # behaves sensibly, so workaround only for py2)
+    if sys.version_info[0] == 2 and not inspect.getsourcefile(module):
+        return
 
     yield module
 

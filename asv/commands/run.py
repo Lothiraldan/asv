@@ -77,6 +77,14 @@ class Run(Command):
                   asv run "--merges master"  run for only merge commits (git)
                 """))
 
+        cls._setup_arguments(parser)
+
+        parser.set_defaults(func=cls.run_from_args)
+
+        return parser
+
+    @classmethod
+    def _setup_arguments(cls, parser, env_default_same=False):
         parser.add_argument(
             'range', nargs='?', default=None,
             help="""Range of commits to benchmark.  For a git
@@ -119,7 +127,7 @@ class Run(Command):
             run only once.  This is useful to find basic errors in the
             benchmark functions faster.  The results are unlikely to
             be useful, and thus are not saved.""")
-        common_args.add_environment(parser)
+        common_args.add_environment(parser, default_same=env_default_same)
         parser.add_argument(
             "--set-commit-hash", default=None,
             help="""Set the commit hash to use when recording benchmark
@@ -158,10 +166,10 @@ class Run(Command):
         parser.add_argument(
             "--no-pull", action="store_true",
             help="Do not pull the repository")
-
-        parser.set_defaults(func=cls.run_from_args)
-
-        return parser
+        parser.add_argument(
+            "--strict", action="store_true",
+            help="When set true the run command will exit with a non-zero "
+                 "return code if any benchmark is in a failed state")
 
     @classmethod
     def run_from_conf_args(cls, conf, args, **kwargs):
@@ -177,7 +185,7 @@ class Run(Command):
             record_samples=args.record_samples, append_samples=args.append_samples,
             pull=not args.no_pull, interleave_processes=args.interleave_processes,
             launch_method=args.launch_method, durations=args.durations,
-            **kwargs
+            strict=args.strict, **kwargs
         )
 
     @classmethod
@@ -187,7 +195,7 @@ class Run(Command):
             dry_run=False, machine=None, _machine_file=None, skip_successful=False,
             skip_failed=False, skip_existing_commits=False, record_samples=False,
             append_samples=False, pull=True, interleave_processes=False,
-            launch_method=None, durations=0, _returns={}):
+            launch_method=None, durations=0, strict=False, _returns={}):
         machine_params = Machine.load(
             machine_name=machine,
             _path=_machine_file, interactive=True)
@@ -218,6 +226,12 @@ class Run(Command):
         repo = get_repo(conf)
         if pull:
             repo.pull()
+
+        if set_commit_hash is not None:
+            set_commit_hash = repo.get_hash_from_name(set_commit_hash)
+
+        # Track failures across the run command
+        failures = False
 
         # Comparison period for date_period filtering
         old_commit_hashes = None
@@ -500,9 +514,16 @@ class Run(Command):
                         if not skip_save:
                             result.save(conf.results_dir)
 
+                        if strict:
+                            failures = failures or any(
+                                code != 0 for code in result.errcode.values())
+
                         if durations > 0:
                             duration_set = Show._get_durations([(machine, result)], benchmark_set)
                             log.info(cls.format_durations(duration_set[(machine, env.name)], durations))
+
+        if failures and strict:
+            return 2
 
     @classmethod
     def format_durations(cls, durations, num_durations):

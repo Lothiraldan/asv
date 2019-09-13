@@ -97,7 +97,7 @@ except ImportError:
 WAIT_TIME = 20.0
 
 
-from lockfile import LockFile
+from filelock import FileLock
 
 
 def get_default_environment_type(conf, python):
@@ -111,7 +111,7 @@ def locked_cache_dir(config, cache_key, timeout=900, tag=None):
     lockfile = join(six.text_type(base_dir), 'lock')
     cache_dir = join(six.text_type(base_dir), 'cache')
 
-    lock = LockFile(lockfile)
+    lock = FileLock(lockfile)
     lock.acquire(timeout=timeout)
     try:
         # Clear cache dir contents if it was generated with different
@@ -463,21 +463,24 @@ def generate_result_dir(tmpdir, dvcs, values, branches=None):
 
     benchmark_version = sha256(os.urandom(16)).hexdigest()
 
-    params = None
+    params = []
     param_names = None
     for commit, value in values.items():
         if isinstance(value, dict):
             params = value["params"]
+            value = value["result"]
+        else:
+            value = [value]
         result = Results({"machine": "tarzan"}, {}, commit,
                          repo.get_date_from_name(commit), "2.7", None, {})
         value = runner.BenchmarkResult(
-            result=[value],
-            samples=[None],
-            number=[None],
+            result=value,
+            samples=[None]*len(value),
+            number=[None]*len(value),
             errcode=0,
             stderr='',
             profile=None)
-        result.add_result({"name": "time_func", "version": benchmark_version, "params": []},
+        result.add_result({"name": "time_func", "version": benchmark_version, "params": params},
                           value, started_at=timestamp, duration=1.0)
         result.save(result_dir)
 
@@ -493,6 +496,30 @@ def generate_result_dir(tmpdir, dvcs, values, branches=None):
         }
     }, api_version=2)
     return conf
+
+
+@pytest.fixture(scope="session")
+def example_results(request):
+    with locked_cache_dir(request.config, "example-results") as cache_dir:
+        src = abspath(join(dirname(__file__), 'example_results'))
+        dst = abspath(join(cache_dir, 'results'))
+
+        if os.path.isdir(dst):
+            return dst
+
+        shutil.copytree(src, dst)
+
+        src_machine = join(dirname(__file__), 'asv-machine.json')
+        dst_machine = join(cache_dir, 'asv-machine.json')
+        shutil.copyfile(src_machine, dst_machine)
+
+        # Convert to current file format
+        conf = config.Config.from_json({'results_dir': dst,
+                                        'repo': 'none',
+                                        'project': 'asv'})
+        run_asv_with_conf(conf, 'update', _machine_file=dst_machine)
+
+        return dst
 
 
 @pytest.fixture(scope="session")
@@ -514,6 +541,7 @@ def browser(request, pytestconfig):
     def ChromeHeadless():
         options = selenium.webdriver.ChromeOptions()
         options.add_argument('headless')
+        options.add_experimental_option('w3c', False)
         return selenium.webdriver.Chrome(options=options)
 
     ns = {}
