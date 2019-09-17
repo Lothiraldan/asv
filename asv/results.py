@@ -17,6 +17,7 @@ import collections
 import six
 from six.moves import zip as izip
 
+from asv.util import to_octobus_results
 from . import environment
 from .console import log
 from .machine import Machine
@@ -191,7 +192,7 @@ class Results(object):
     Manage a set of benchmark results for a single machine and commit
     hash.
     """
-    api_version = 2
+    api_version = 3
 
     def __init__(self,
                  params,
@@ -574,7 +575,7 @@ class Results(object):
         """
         return benchmark_name in self._profiles
 
-    def save(self, result_dir):
+    def save(self, result_dir, benchmarks_data):
         """
         Save the results to disk, replacing existing results.
 
@@ -643,6 +644,10 @@ class Results(object):
             'date': self._date,
             'params': self._params,
             'python': self._python,
+            'octobus_results': to_octobus_results(
+                all_benchmarks_data=benchmarks_data,
+                old_format_results=results
+            ),
             'requirements': self._requirements,
             'env_vars': self._env_vars,
             'result_columns': all_keys,
@@ -769,7 +774,7 @@ class Results(object):
     #
 
     @classmethod
-    def update_to_2(cls, d):
+    def update_to_2(cls, d, path):
         """
         Reformat data in api_version 1 format to version 2.
         """
@@ -889,6 +894,26 @@ class Results(object):
             raise util.UserError(
                 "Error loading results data: missing key {}".format(
                     six.text_type(exc)))
+        
+    @classmethod
+    def update_to_3(cls, data, path):
+        global benchmarks_json_data
+        dirname = os.path.dirname(path)
+
+        if benchmarks_json_data.get(dirname) is None:
+            benchmarks_json_path = os.path.join(
+                os.path.dirname(dirname),
+                'benchmarks.json'
+            )
+            benchmarks_json_data[dirname] = util.load_json(benchmarks_json_path)
+
+        bench_data = benchmarks_json_data[dirname]
+        data = util.to_octobus_results(bench_data, data)
+
+        return data
+
+
+benchmarks_json_data = {}
 
 
 def format_benchmark_result(results, benchmark):

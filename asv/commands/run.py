@@ -512,7 +512,8 @@ class Run(Command):
                             skip_benchmarks(benchmark_set, env, results=result)
 
                         if not skip_save:
-                            result.save(conf.results_dir)
+                            result.save(conf.results_dir,
+                                        benchmarks_data=benchmarks._all_benchmarks)
 
                         if strict:
                             failures = failures or any(

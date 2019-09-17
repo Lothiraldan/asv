@@ -8,6 +8,8 @@ Various low-level utilities.
 from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
 
+from copy import deepcopy
+
 import datetime
 import json
 import math
@@ -27,6 +29,7 @@ import shlex
 import operator
 import collections
 import multiprocessing
+import itertools
 
 import six
 from six.moves import xrange
@@ -880,6 +883,57 @@ def load_json(path, api_version=None, js_comments=False):
     return d
 
 
+def to_octobus_results(all_benchmarks_data, old_format_results):
+    new = deepcopy(old_format_results)
+    new["octobus_results"] = collections.defaultdict(list)
+
+    results = old_format_results.get('results')
+    if results is None:
+        return new
+
+    for bench_name, results in results.items():
+        try:
+            current_bench_data = all_benchmarks_data[bench_name]
+        except KeyError:
+            print(
+                "Test {} does not exist in benchmarks.json,"
+                " skipping".format(
+                    bench_name
+                ))
+            continue
+        param_names = current_bench_data['param_names']
+
+        # Columns x lines
+        results_as_object = dict(zip(old_format_results['result_columns'], results))
+        # Columns x lines for params as well
+        results_as_object['params'] = dict(zip(param_names, results_as_object['params']))
+
+        # Generate cartesian product of all params
+        explosion = [dict(zip(results_as_object['params'], x)) for x in itertools.product(*results_as_object['params'].values())]
+
+        for combo in explosion:
+            new_result = {}
+            new_result["params"] = combo
+
+            # Match each combination with its results/stats, etc.
+            for i, field in enumerate(old_format_results['result_columns']):
+                if field == "params":
+                    continue
+
+                corresponding_values = results_as_object.get(field)
+                if corresponding_values is None:
+                    continue
+
+                if isinstance(corresponding_values, list):
+                    new_result[field] = corresponding_values[i]
+                else:
+                    new_result[field] = corresponding_values
+
+            new["octobus_results"][bench_name].append(new_result)
+
+    return new
+
+
 def update_json(cls, path, api_version, compact=False):
     """
     Perform JSON file format updates.
@@ -906,7 +960,7 @@ def update_json(cls, path, api_version, compact=False):
 
     if d['version'] < api_version:
         for x in six.moves.xrange(d['version'] + 1, api_version + 1):
-            d = getattr(cls, 'update_to_{0}'.format(x), lambda x: x)(d)
+            d = getattr(cls, 'update_to_{0}'.format(x), lambda x: x)(d, path)
         write_json(path, d, api_version, compact=compact)
     elif d['version'] > api_version:
         raise UserError(
