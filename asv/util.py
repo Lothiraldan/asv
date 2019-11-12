@@ -9,7 +9,7 @@ from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
 
 from copy import deepcopy
-
+from collections import OrderedDict
 import datetime
 import json
 import math
@@ -940,6 +940,55 @@ def to_octobus_results(all_benchmarks_data, old_format_data):
             new["octobus_results"][bench_name].append(new_result)
 
     return new
+
+
+def octobus_results_to_asv_results(data):
+    octobus_results = data.get('octobus_results')
+
+    if not octobus_results:
+        msg = "Results data should contains non-empty `octobus_results`"
+        raise ValueError(msg)
+
+    SCALAR_COLUMNS = {'version', 'started_at', 'duration'}
+    out_data = deepcopy(data)
+    out_data['results'] = {}
+
+    result_columns = data['result_columns']
+    bench_param_names = data['bench_param_names']
+
+    for benchmark, results in octobus_results.items():
+        asv_results = OrderedDict()
+        asv_params = OrderedDict()
+
+        for result in results:
+            for column in result_columns:
+                if column == "params":
+                    for name in bench_param_names:
+                        asv_params.setdefault(name, OrderedDict())
+                        param_value = result['params'][name]
+
+                        # There is no `OrderedSet` in Python < 3.7
+                        # so we use the keys of an `OrderedDict` instead
+                        asv_params[name][param_value] = None
+                if column in SCALAR_COLUMNS:
+                    # Not a list, same result for all results
+                    asv_results[column] = result[column]
+                    continue
+                try:
+                    corresponding_value = result[column]
+                except KeyError:
+                    # this field is missing, so are the rest since it's sorted
+                    break
+                else:
+                    asv_results.setdefault(column, [])
+                    asv_results[column].append(corresponding_value)
+
+        params = (list(v.keys()) for v in asv_params.values())
+        asv_results['params'] = list(params)
+
+        out_data['results'][benchmark] = list(asv_results.values())
+
+    return out_data
 
 
 def update_json(cls, path, api_version, compact=False):
