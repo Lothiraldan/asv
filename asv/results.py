@@ -644,16 +644,17 @@ class Results(object):
             'date': self._date,
             'params': self._params,
             'python': self._python,
-            'octobus_results': to_octobus_results(
-                all_benchmarks_data=benchmarks_data,
-                old_format_results=results
-            ),
             'requirements': self._requirements,
             'env_vars': self._env_vars,
             'result_columns': all_keys,
             'results': results,
             'durations': other_durations,
         }
+
+        data = to_octobus_results(
+            all_benchmarks_data=benchmarks_data,
+            old_format_data=data
+        )
 
         util.write_json(path, data, self.api_version, compact=True)
 

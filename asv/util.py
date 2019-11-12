@@ -883,11 +883,11 @@ def load_json(path, api_version=None, js_comments=False):
     return d
 
 
-def to_octobus_results(all_benchmarks_data, old_format_results):
-    new = deepcopy(old_format_results)
+def to_octobus_results(all_benchmarks_data, old_format_data):
+    new = deepcopy(old_format_data)
     new["octobus_results"] = collections.defaultdict(list)
 
-    results = old_format_results.get('results')
+    results = old_format_data.get('results')
     if results is None:
         return new
 
@@ -902,30 +902,38 @@ def to_octobus_results(all_benchmarks_data, old_format_results):
                 ))
             continue
         param_names = current_bench_data['param_names']
+        new["bench_param_names"] = param_names
 
         # Columns x lines
-        results_as_object = dict(zip(old_format_results['result_columns'], results))
+        results_as_object = dict(zip(old_format_data['result_columns'], results))
         # Columns x lines for params as well
         results_as_object['params'] = dict(zip(param_names, results_as_object['params']))
 
         # Generate cartesian product of all params
-        explosion = [dict(zip(results_as_object['params'], x)) for x in itertools.product(*results_as_object['params'].values())]
+        explosion = []
+        for x in itertools.product(*results_as_object['params'].values()):
+            explosion.append(dict(zip(results_as_object['params'], x)))
 
-        for combo in explosion:
+        for index, combo in enumerate(explosion):
             new_result = {}
             new_result["params"] = combo
 
             # Match each combination with its results/stats, etc.
-            for i, field in enumerate(old_format_results['result_columns']):
+            for field in old_format_data['result_columns']:
                 if field == "params":
                     continue
 
-                corresponding_values = results_as_object.get(field)
-                if corresponding_values is None:
+                try:
+                    corresponding_values = results_as_object[field]
+                except KeyError:
+                    # A field is missing (no stats, for instance)
                     continue
 
                 if isinstance(corresponding_values, list):
-                    new_result[field] = corresponding_values[i]
+                    try:
+                        new_result[field] = corresponding_values[index]
+                    except IndexError:
+                        new_result[field] = None
                 else:
                     new_result[field] = corresponding_values
 
