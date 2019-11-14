@@ -8,8 +8,6 @@ Various low-level utilities.
 from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
 
-from copy import deepcopy
-from collections import OrderedDict
 import datetime
 import json
 import math
@@ -29,7 +27,6 @@ import shlex
 import operator
 import collections
 import multiprocessing
-import itertools
 
 import six
 from six.moves import xrange
@@ -823,6 +820,12 @@ def write_json(path, data, api_version=None, compact=False):
         else:
             json.dump(data, fd)
 
+OCTOBUS_MIGRATIONS_EXCLUDED_FILES = {
+    '.asv-machine.json',
+    'asv.conf.json',
+    'benchmarks.json',
+    'machine.json'
+}
 
 def load_json(path, api_version=None, js_comments=False):
     """
@@ -864,6 +867,21 @@ def load_json(path, api_version=None, js_comments=False):
                 path, six.text_type(e)))
 
     if api_version is not None:
+        if os.path.basename(path) not in OCTOBUS_MIGRATIONS_EXCLUDED_FILES:
+            # local import to prevent import loop, don't want to refactor yet
+            from .migrations import (
+                Executor, check_migration_version, NoMigrationFilesFound
+            )
+
+            project_root = os.getcwd()  # FIXME pass config to this function
+            try:
+                executor = Executor(project_root)
+            except NoMigrationFilesFound:
+                pass
+            else:
+                current_migrations_index = executor.current_migration_index
+                check_migration_version(current_migrations_index, path, d)
+
         if 'version' in d:
             if d['version'] < api_version:
                 raise UserError(
@@ -881,114 +899,6 @@ def load_json(path, api_version=None, js_comments=False):
                 "No version specified in {0}.".format(path))
 
     return d
-
-
-def to_octobus_results(all_benchmarks_data, old_format_data):
-    new = deepcopy(old_format_data)
-    new["octobus_results"] = collections.defaultdict(list)
-
-    results = old_format_data.get('results')
-    if results is None:
-        return new
-
-    for bench_name, results in results.items():
-        try:
-            current_bench_data = all_benchmarks_data[bench_name]
-        except KeyError:
-            print(
-                "Test {} does not exist in benchmarks.json,"
-                " skipping".format(
-                    bench_name
-                ))
-            continue
-        param_names = current_bench_data['param_names']
-        new["bench_param_names"] = param_names
-
-        # Columns x lines
-        results_as_object = dict(zip(old_format_data['result_columns'], results))
-        # Columns x lines for params as well
-        results_as_object['params'] = dict(zip(param_names, results_as_object['params']))
-
-        # Generate cartesian product of all params
-        explosion = []
-        for x in itertools.product(*results_as_object['params'].values()):
-            explosion.append(dict(zip(results_as_object['params'], x)))
-
-        for index, combo in enumerate(explosion):
-            new_result = {}
-            new_result["params"] = combo
-
-            # Match each combination with its results/stats, etc.
-            for field in old_format_data['result_columns']:
-                if field == "params":
-                    continue
-
-                try:
-                    corresponding_values = results_as_object[field]
-                except KeyError:
-                    # A field is missing (no stats, for instance)
-                    continue
-
-                if isinstance(corresponding_values, list):
-                    try:
-                        new_result[field] = corresponding_values[index]
-                    except IndexError:
-                        new_result[field] = None
-                else:
-                    new_result[field] = corresponding_values
-
-            new["octobus_results"][bench_name].append(new_result)
-
-    return new
-
-
-def octobus_results_to_asv_results(data):
-    octobus_results = data.get('octobus_results')
-
-    if not octobus_results:
-        msg = "Results data should contains non-empty `octobus_results`"
-        raise ValueError(msg)
-
-    SCALAR_COLUMNS = {'version', 'started_at', 'duration'}
-    out_data = deepcopy(data)
-    out_data['results'] = {}
-
-    result_columns = data['result_columns']
-    bench_param_names = data['bench_param_names']
-
-    for benchmark, results in octobus_results.items():
-        asv_results = OrderedDict()
-        asv_params = OrderedDict()
-
-        for result in results:
-            for column in result_columns:
-                if column == "params":
-                    for name in bench_param_names:
-                        asv_params.setdefault(name, OrderedDict())
-                        param_value = result['params'][name]
-
-                        # There is no `OrderedSet` in Python < 3.7
-                        # so we use the keys of an `OrderedDict` instead
-                        asv_params[name][param_value] = None
-                if column in SCALAR_COLUMNS:
-                    # Not a list, same result for all results
-                    asv_results[column] = result[column]
-                    continue
-                try:
-                    corresponding_value = result[column]
-                except KeyError:
-                    # this field is missing, so are the rest since it's sorted
-                    break
-                else:
-                    asv_results.setdefault(column, [])
-                    asv_results[column].append(corresponding_value)
-
-        params = (list(v.keys()) for v in asv_params.values())
-        asv_results['params'] = list(params)
-
-        out_data['results'][benchmark] = list(asv_results.values())
-
-    return out_data
 
 
 def update_json(cls, path, api_version, compact=False):
@@ -1011,13 +921,15 @@ def update_json(cls, path, api_version, compact=False):
     __tracebackhide__ = operator.methodcaller('errisinstance', UserError)
 
     d = load_json(path)
+
     if 'version' not in d:
         raise UserError(
             "No version specified in {0}.".format(path))
 
     if d['version'] < api_version:
         for x in six.moves.xrange(d['version'] + 1, api_version + 1):
-            d = getattr(cls, 'update_to_{0}'.format(x), lambda x: x)(d, path)
+            d = getattr(cls, 'update_to_{0}'.format(x), lambda x: x)(d,
+                                                                     path)
         write_json(path, d, api_version, compact=compact)
     elif d['version'] > api_version:
         raise UserError(
