@@ -17,12 +17,12 @@ import collections
 import six
 from six.moves import zip as izip
 
-from asv.util import to_octobus_results
 from . import environment
 from .console import log
 from .machine import Machine
 from . import statistics
 from . import util
+from . import migrations
 
 
 def iter_results_paths(results):
@@ -651,7 +651,7 @@ class Results(object):
             'durations': other_durations,
         }
 
-        data = to_octobus_results(
+        data = migrations.to_octobus_results(
             all_benchmarks_data=benchmarks_data,
             old_format_data=data
         )

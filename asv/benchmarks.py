@@ -23,7 +23,7 @@ class Benchmarks(dict):
     """
     Manages and runs the set of benchmarks in the project.
     """
-    api_version = 2
+    api_version = 3
 
     def __init__(self, conf, benchmarks, regex=None):
         """
